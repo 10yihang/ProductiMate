@@ -98,9 +98,9 @@ const App: React.FC = () => {
       case 'pomodoro':
         return <PomodoroTimer darkMode={darkMode} />;
       case 'calendar':
-        return <Calendar />;
+        return <Calendar darkMode={darkMode} />;
       case 'habits':
-        return <HabitTracker />;
+        return <HabitTracker darkMode={darkMode} />;
       case 'notes':
         return <QuickNotes />;
       case 'reports':

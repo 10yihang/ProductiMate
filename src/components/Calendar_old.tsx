@@ -17,8 +17,6 @@ import {
   Popover,
   Tag,
   Tooltip,
-  Badge,
-  Avatar,
 } from 'antd';
 import {
   PlusOutlined,
@@ -29,12 +27,6 @@ import {
   EditOutlined,
   DeleteOutlined,
   ExportOutlined,
-  EnvironmentOutlined,
-  TeamOutlined,
-  LeftOutlined,
-  RightOutlined,
-  EyeOutlined,
-  FilterOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/zh-cn';
@@ -84,7 +76,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
     },
     {
       id: '2',
-      title: '健身锻炼',
+      title: '健身',
       description: '有氧运动30分钟',
       date: dayjs().format('YYYY-MM-DD'),
       startTime: '18:00',
@@ -95,86 +87,30 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
       reminder: 30,
       repeat: 'daily',
     },
-    {
-      id: '3',
-      title: '项目评审',
-      description: '月度项目进展评审会议',
-      date: dayjs().add(1, 'day').format('YYYY-MM-DD'),
-      startTime: '14:00',
-      endTime: '16:00',
-      type: 'work',
-      priority: 'high',
-      isAllDay: false,
-      reminder: 60,
-      repeat: 'monthly',
-      location: '大会议室',
-      attendees: ['王五', '赵六', '钱七'],
-    },
   ]);
   
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [currentView, setCurrentView] = useState<'month' | 'week' | 'day'>('month');
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [filterType, setFilterType] = useState<string>('all');
   const [form] = Form.useForm();
 
   // 获取指定日期的事件
   const getEventsForDate = (date: string) => {
-    let dateEvents = events.filter(event => event.date === date);
-    
-    if (filterType !== 'all') {
-      dateEvents = dateEvents.filter(event => event.type === filterType);
-    }
-    
-    return dateEvents.sort((a, b) => {
-      if (a.isAllDay && !b.isAllDay) return -1;
-      if (!a.isAllDay && b.isAllDay) return 1;
-      if (!a.isAllDay && !b.isAllDay) {
-        return (a.startTime || '').localeCompare(b.startTime || '');
-      }
-      return 0;
-    });
+    return events.filter(event => event.date === date);
   };
 
-  // 事件类型配置
-  const eventTypeConfig = {
-    work: { 
-      label: '工作', 
-      color: '#1890ff', 
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      icon: '💼'
-    },
-    personal: { 
-      label: '个人', 
-      color: '#52c41a', 
-      gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-      icon: '🏠'
-    },
-    health: { 
-      label: '健康', 
-      color: '#fa8c16', 
-      gradient: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-      icon: '💪'
-    },
-    study: { 
-      label: '学习', 
-      color: '#722ed1', 
-      gradient: 'linear-gradient(135deg, #a8caba 0%, #5d4e75 100%)',
-      icon: '📚'
-    },
-    meeting: { 
-      label: '会议', 
-      color: '#eb2f96', 
-      gradient: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-      icon: '🤝'
-    },
-    other: { 
-      label: '其他', 
-      color: '#8c8c8c', 
-      gradient: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
-      icon: '📌'
-    },
+  // 事件类型颜色
+  const getEventTypeColor = (type: string) => {
+    const colors = {
+      work: '#1890ff',
+      personal: '#52c41a',
+      health: '#fa8c16',
+      study: '#722ed1',
+      meeting: '#eb2f96',
+      other: '#8c8c8c',
+    };
+    return colors[type as keyof typeof colors] || colors.other;
   };
 
   // 优先级颜色
@@ -277,18 +213,18 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
     return (
       <div className="calendar-grid">
         {/* 星期标题 */}
-        <div className="grid grid-cols-7 gap-3 mb-4">
-          {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((day, index) => (
-            <div key={day} className={`text-center py-3 font-semibold text-sm rounded-lg ${
-              darkMode ? 'text-gray-300 bg-gray-800' : 'text-gray-600 bg-gray-50'
-            } ${index === 0 || index === 6 ? (darkMode ? 'text-blue-400' : 'text-blue-600') : ''}`}>
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map(day => (
+            <div key={day} className={`text-center py-2 font-semibold ${
+              darkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>
               {day}
             </div>
           ))}
         </div>
         
         {/* 日期网格 */}
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid grid-cols-7 gap-1">
           {weeks.flat().map(date => {
             const dateStr = date.format('YYYY-MM-DD');
             const dayEvents = getEventsForDate(dateStr);
@@ -299,105 +235,74 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             return (
               <div
                 key={dateStr}
-                className={`min-h-32 p-3 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                className={`min-h-24 p-2 border rounded cursor-pointer transition-colors ${
                   darkMode 
-                    ? 'border-gray-600 hover:border-gray-500 bg-gray-800 hover:bg-gray-750' 
-                    : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                    ? 'border-gray-600 hover:bg-gray-700' 
+                    : 'border-gray-200 hover:bg-gray-50'
                 } ${
                   !isCurrentMonth 
-                    ? 'opacity-40'
+                    ? darkMode ? 'text-gray-500' : 'text-gray-400'
                     : ''
                 } ${
                   isToday 
-                    ? darkMode 
-                      ? 'bg-blue-900/50 border-blue-500 ring-2 ring-blue-500/20' 
-                      : 'bg-blue-50 border-blue-300 ring-2 ring-blue-300/20'
+                    ? darkMode ? 'bg-blue-900 border-blue-500' : 'bg-blue-50 border-blue-300'
                     : ''
                 } ${
-                  isSelected && !isToday
-                    ? darkMode ? 'bg-gray-700 border-gray-500' : 'bg-gray-100 border-gray-400'
+                  isSelected 
+                    ? darkMode ? 'bg-gray-700' : 'bg-gray-100'
                     : ''
                 }`}
                 onClick={() => setSelectedDate(date)}
               >
-                <div className={`text-sm font-semibold mb-2 flex items-center justify-between ${
-                  isToday ? 'text-blue-600 font-bold' : darkMode ? 'text-white' : 'text-gray-900'
+                <div className={`text-sm font-medium mb-1 ${
+                  isToday ? 'text-blue-600 font-bold' : ''
                 }`}>
-                  <span className={isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs' : ''}>
-                    {date.date()}
-                  </span>
-                  {dayEvents.length > 0 && (
-                    <Badge 
-                      count={dayEvents.length} 
-                      size="small"
-                      style={{ backgroundColor: '#1890ff' }}
-                    />
-                  )}
+                  {date.date()}
                 </div>
                 
                 <div className="space-y-1">
-                  {dayEvents.slice(0, 3).map(event => {
-                    const typeConfig = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
-                    return (
-                      <Popover
-                        key={event.id}
-                        content={
-                          <div className="max-w-xs">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <span className="text-lg">{typeConfig.icon}</span>
-                              <Text className="font-semibold">{event.title}</Text>
-                            </div>
-                            {event.description && (
-                              <Text className="text-sm text-gray-600 block mb-2">
-                                {event.description}
-                              </Text>
-                            )}
-                            <div className="space-y-1 text-xs">
-                              {!event.isAllDay && (
-                                <div className="flex items-center space-x-1">
-                                  <ClockCircleOutlined />
-                                  <span>{event.startTime} - {event.endTime}</span>
-                                </div>
-                              )}
-                              {event.location && (
-                                <div className="flex items-center space-x-1">
-                                  <EnvironmentOutlined />
-                                  <span>{event.location}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        }
-                        trigger="hover"
-                      >
-                        <div
-                          className={`text-xs p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-105 text-white font-medium shadow-sm`}
-                          style={{ 
-                            background: typeConfig.gradient,
-                            border: `1px solid ${typeConfig.color}20`
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditEvent(event);
-                          }}
-                        >
-                          <div className="flex items-center space-x-1">
-                            <span>{typeConfig.icon}</span>
-                            <span className="truncate flex-1">{event.title}</span>
-                          </div>
-                          {!event.isAllDay && (
-                            <div className="text-xs opacity-80 mt-1">
-                              {event.startTime}
-                            </div>
+                  {dayEvents.slice(0, 3).map(event => (
+                    <Popover
+                      key={event.id}
+                      content={
+                        <div className="max-w-xs">
+                          <div className="font-semibold mb-2">{event.title}</div>
+                          {event.description && (
+                            <div className="text-sm text-gray-600 mb-2">{event.description}</div>
                           )}
+                          <div className="text-xs space-y-1">
+                            {!event.isAllDay && (
+                              <div>时间: {event.startTime} - {event.endTime}</div>
+                            )}
+                            {event.location && <div>地点: {event.location}</div>}
+                            <div>类型: {event.type}</div>
+                            <div>优先级: {event.priority}</div>
+                          </div>
+                          <div className="mt-2 space-x-2">
+                            <Button size="small" onClick={() => handleEditEvent(event)}>
+                              编辑
+                            </Button>
+                            <Button size="small" danger onClick={() => handleDeleteEvent(event.id)}>
+                              删除
+                            </Button>
+                          </div>
                         </div>
-                      </Popover>
-                    );
-                  })}
+                      }
+                      trigger="hover"
+                    >
+                      <div
+                        className="text-xs px-1 py-0.5 rounded truncate"
+                        style={{ 
+                          backgroundColor: getEventTypeColor(event.type) + '20',
+                          borderLeft: `3px solid ${getEventTypeColor(event.type)}`,
+                        }}
+                      >
+                        {event.title}
+                      </div>
+                    </Popover>
+                  ))}
                   {dayEvents.length > 3 && (
-                    <div className={`text-xs p-1 rounded text-center ${
-                      darkMode ? 'text-gray-400 bg-gray-700' : 'text-gray-500 bg-gray-100'
-                    }`}>
+                    <div className="text-xs text-gray-500">
                       +{dayEvents.length - 3} 更多
                     </div>
                   )}
@@ -416,18 +321,12 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
     
     return (
       <Card 
-        title={
-          <div className="flex items-center space-x-2">
-            <CalendarOutlined className="text-blue-600" />
-            <span>{selectedDate.format('MM月DD日')} 的事件</span>
-          </div>
-        }
-        className={`${darkMode ? 'bg-gray-800 border-gray-700' : ''} shadow-lg`}
+        title={`${selectedDate.format('MM月DD日')} 的事件`}
+        className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
         extra={
           <Button 
             type="primary" 
             icon={<PlusOutlined />}
-            className="rounded-lg"
             onClick={() => {
               setEditingEvent(null);
               form.resetFields();
@@ -447,99 +346,87 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
         }
       >
         {todayEvents.length === 0 ? (
-          <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            <CalendarOutlined className="text-4xl mb-4 opacity-50" />
-            <div className="text-lg mb-2">今天没有安排事件</div>
-            <div className="text-sm">点击上方按钮添加新事件</div>
+          <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            今天没有安排事件
           </div>
         ) : (
-          <div className="space-y-4">
-            {todayEvents.map(event => {
-              const typeConfig = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
-              return (
+          <div className="space-y-3">
+            {todayEvents
+              .sort((a, b) => {
+                if (a.isAllDay && !b.isAllDay) return -1;
+                if (!a.isAllDay && b.isAllDay) return 1;
+                if (!a.isAllDay && !b.isAllDay) {
+                  return (a.startTime || '').localeCompare(b.startTime || '');
+                }
+                return 0;
+              })
+              .map(event => (
                 <div
                   key={event.id}
-                  className={`p-4 rounded-xl border transition-all duration-200 hover:shadow-md ${
-                    darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:bg-gray-50'
-                  }`}
-                  style={{ 
-                    borderLeft: `4px solid ${typeConfig.color}`,
-                    background: darkMode 
-                      ? `linear-gradient(135deg, ${typeConfig.color}10 0%, transparent 100%)`
-                      : `linear-gradient(135deg, ${typeConfig.color}08 0%, transparent 100%)`
-                  }}
+                  className={`p-4 rounded-lg border-l-4 ${
+                    darkMode ? 'bg-gray-700' : 'bg-white'
+                  } shadow-sm`}
+                  style={{ borderLeftColor: getEventTypeColor(event.type) }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-                             style={{ backgroundColor: `${typeConfig.color}20` }}>
-                          {typeConfig.icon}
-                        </div>
-                        <div>
-                          <Text className="font-semibold text-lg">{event.title}</Text>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Tag color={typeConfig.color} className="rounded-full">
-                              {typeConfig.label}
-                            </Tag>
-                            <Tag color={getPriorityColor(event.priority)} className="rounded-full">
-                              {event.priority === 'high' ? '高优先级' : event.priority === 'medium' ? '中优先级' : '低优先级'}
-                            </Tag>
-                          </div>
-                        </div>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Text className="font-semibold text-base">{event.title}</Text>
+                        <Tag color={getPriorityColor(event.priority)}>
+                          {event.priority === 'high' ? '高' : event.priority === 'medium' ? '中' : '低'}
+                        </Tag>
+                        <Tag color={getEventTypeColor(event.type)}>
+                          {event.type}
+                        </Tag>
                       </div>
                       
                       {event.description && (
-                        <Text className={`block mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <Text className={`block mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                           {event.description}
                         </Text>
                       )}
                       
                       <div className="flex flex-wrap gap-4 text-sm">
                         <div className="flex items-center space-x-1">
-                          <ClockCircleOutlined className="text-blue-600" />
+                          <ClockCircleOutlined />
                           <span>
-                            {event.isAllDay ? '全天' : `${event.startTime} - ${event.endTime}`}
+                            {event.isAllDay 
+                              ? '全天' 
+                              : `${event.startTime} - ${event.endTime}`
+                            }
                           </span>
                         </div>
                         
                         {event.location && (
                           <div className="flex items-center space-x-1">
-                            <EnvironmentOutlined className="text-green-600" />
+                            <CalendarOutlined />
                             <span>{event.location}</span>
                           </div>
                         )}
                         
                         {event.reminder && (
                           <div className="flex items-center space-x-1">
-                            <BellOutlined className="text-orange-600" />
+                            <BellOutlined />
                             <span>提前{event.reminder}分钟提醒</span>
                           </div>
                         )}
                         
                         {event.repeat && event.repeat !== 'none' && (
                           <div className="flex items-center space-x-1">
-                            <SyncOutlined className="text-purple-600" />
+                            <SyncOutlined />
                             <span>
-                              {event.repeat === 'daily' ? '每日重复' : 
-                               event.repeat === 'weekly' ? '每周重复' : 
-                               event.repeat === 'monthly' ? '每月重复' : '每年重复'}
+                              {event.repeat === 'daily' ? '每日重复' :
+                               event.repeat === 'weekly' ? '每周重复' :
+                               event.repeat === 'monthly' ? '每月重复' :
+                               event.repeat === 'yearly' ? '每年重复' : ''}
                             </span>
                           </div>
                         )}
                       </div>
                       
                       {event.attendees && event.attendees.length > 0 && (
-                        <div className="mt-3 flex items-center space-x-2">
-                          <TeamOutlined className="text-blue-600" />
-                          <Text className="text-sm">参与者: </Text>
-                          <Avatar.Group size="small" maxCount={3}>
-                            {event.attendees.map((attendee, index) => (
-                              <Avatar key={index} className="bg-blue-500">
-                                {attendee.charAt(0)}
-                              </Avatar>
-                            ))}
-                          </Avatar.Group>
+                        <div className="mt-2">
+                          <Text className="text-sm">参与者: {event.attendees.join(', ')}</Text>
                         </div>
                       )}
                     </div>
@@ -549,7 +436,6 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                         <Button 
                           size="small" 
                           icon={<EditOutlined />}
-                          className="rounded-lg"
                           onClick={() => handleEditEvent(event)}
                         />
                       </Tooltip>
@@ -558,15 +444,13 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                           size="small" 
                           danger 
                           icon={<DeleteOutlined />}
-                          className="rounded-lg"
                           onClick={() => handleDeleteEvent(event.id)}
                         />
                       </Tooltip>
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              ))}
           </div>
         )}
       </Card>
@@ -576,27 +460,20 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
   return (
     <div className="calendar-container space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <Title level={2} className={`mb-2 ${darkMode ? 'text-white' : ''}`}>
-            日程管理
-          </Title>
-          <Text className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-            管理您的日程安排和重要事件
-          </Text>
-        </div>
+        <Title level={2} className={darkMode ? 'text-white' : ''}>
+          日程管理
+        </Title>
         
         <Space>
-          <Button icon={<ExportOutlined />} className="rounded-lg">
+          <Button icon={<ExportOutlined />}>
             导出日历
           </Button>
-          <Button icon={<SyncOutlined />} className="rounded-lg">
+          <Button icon={<SyncOutlined />}>
             同步日历
           </Button>
           <Button 
             type="primary"
             icon={<PlusOutlined />}
-            size="large"
-            className="rounded-lg"
             onClick={() => {
               setEditingEvent(null);
               form.resetFields();
@@ -617,17 +494,16 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
       </div>
 
       {/* 工具栏 */}
-      <Card className={`${darkMode ? 'bg-gray-800 border-gray-700' : ''} shadow-lg`}>
+      <Card className={darkMode ? 'bg-gray-800 border-gray-700' : ''}>
         <Row gutter={16} align="middle" justify="space-between">
           <Col>
-            <Space size="large">
+            <Space>
               <Button.Group>
                 <Button 
                   type={currentView === 'month' ? 'primary' : 'default'}
                   onClick={() => setCurrentView('month')}
-                  className="rounded-l-lg"
                 >
-                  <EyeOutlined /> 月视图
+                  月视图
                 </Button>
                 <Button 
                   type={currentView === 'week' ? 'primary' : 'default'}
@@ -640,64 +516,43 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                   type={currentView === 'day' ? 'primary' : 'default'}
                   onClick={() => setCurrentView('day')}
                   disabled
-                  className="rounded-r-lg"
                 >
                   日视图
                 </Button>
               </Button.Group>
               
-              <Button 
-                onClick={() => setSelectedDate(dayjs())}
-                className="rounded-lg"
-              >
+              <Button onClick={() => setSelectedDate(dayjs())}>
                 今天
               </Button>
-
-              <Space>
-                <FilterOutlined />
-                <Select
-                  value={filterType}
-                  onChange={setFilterType}
-                  style={{ width: 120 }}
-                  size="small"
-                >
-                  <Option value="all">所有类型</Option>
-                  {Object.entries(eventTypeConfig).map(([key, config]) => (
-                    <Option key={key} value={key}>
-                      {config.icon} {config.label}
-                    </Option>
-                  ))}
-                </Select>
-              </Space>
             </Space>
           </Col>
           
           <Col>
-            <Space size="large">
+            <Space>
               <Button 
                 onClick={() => setSelectedDate(selectedDate.subtract(1, 'month'))}
-                icon={<LeftOutlined />}
-                className="rounded-lg"
-              />
+              >
+                上一月
+              </Button>
               
-              <Text className={`mx-4 font-semibold text-lg ${darkMode ? 'text-white' : ''}`}>
+              <Text className={`mx-4 font-semibold ${darkMode ? 'text-white' : ''}`}>
                 {selectedDate.format('YYYY年MM月')}
               </Text>
               
               <Button 
                 onClick={() => setSelectedDate(selectedDate.add(1, 'month'))}
-                icon={<RightOutlined />}
-                className="rounded-lg"
-              />
+              >
+                下一月
+              </Button>
             </Space>
           </Col>
         </Row>
       </Card>
 
       {/* 日历主体 */}
-      <Row gutter={24}>
+      <Row gutter={16}>
         <Col span={16}>
-          <Card className={`${darkMode ? 'bg-gray-800 border-gray-700' : ''} shadow-lg`}>
+          <Card className={darkMode ? 'bg-gray-800 border-gray-700' : ''}>
             {renderCalendarGrid()}
           </Card>
         </Col>
@@ -709,12 +564,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
 
       {/* 事件编辑弹窗 */}
       <Modal
-        title={
-          <div className="flex items-center space-x-2">
-            <CalendarOutlined className="text-blue-600" />
-            <span>{editingEvent ? '编辑事件' : '新建事件'}</span>
-          </div>
-        }
+        title={editingEvent ? '编辑事件' : '新建事件'}
         open={showEventModal}
         onCancel={() => {
           setShowEventModal(false);
@@ -723,7 +573,6 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
         }}
         onOk={() => form.submit()}
         width={600}
-        className="event-modal"
       >
         <Form
           form={form}
@@ -735,7 +584,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             label="事件标题"
             rules={[{ required: true, message: '请输入事件标题' }]}
           >
-            <Input placeholder="输入事件标题" size="large" />
+            <Input placeholder="输入事件标题" />
           </Form.Item>
 
           <Form.Item name="description" label="描述">
@@ -749,17 +598,13 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                 label="日期"
                 rules={[{ required: true, message: '请选择日期' }]}
               >
-                <DatePicker className="w-full" size="large" />
+                <DatePicker className="w-full" />
               </Form.Item>
             </Col>
             
             <Col span={12}>
-              <Form.Item name="isAllDay" valuePropName="checked" label=" ">
-                <Switch 
-                  checkedChildren="全天" 
-                  unCheckedChildren="指定时间" 
-                  size="default"
-                />
+              <Form.Item name="isAllDay" valuePropName="checked">
+                <Switch checkedChildren="全天" unCheckedChildren="指定时间" />
               </Form.Item>
             </Col>
           </Row>
@@ -773,7 +618,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             {({ getFieldValue }) => 
               !getFieldValue('isAllDay') && (
                 <Form.Item name="timeRange" label="时间">
-                  <TimePicker.RangePicker format="HH:mm" className="w-full" size="large" />
+                  <TimePicker.RangePicker format="HH:mm" className="w-full" />
                 </Form.Item>
               )
             }
@@ -782,25 +627,23 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="type" label="类型">
-                <Select size="large">
-                  {Object.entries(eventTypeConfig).map(([key, config]) => (
-                    <Option key={key} value={key}>
-                      <span className="flex items-center space-x-2">
-                        <span>{config.icon}</span>
-                        <span>{config.label}</span>
-                      </span>
-                    </Option>
-                  ))}
+                <Select>
+                  <Option value="work">工作</Option>
+                  <Option value="personal">个人</Option>
+                  <Option value="health">健康</Option>
+                  <Option value="study">学习</Option>
+                  <Option value="meeting">会议</Option>
+                  <Option value="other">其他</Option>
                 </Select>
               </Form.Item>
             </Col>
             
             <Col span={12}>
               <Form.Item name="priority" label="优先级">
-                <Select size="large">
-                  <Option value="high">🔴 高优先级</Option>
-                  <Option value="medium">🟡 中优先级</Option>
-                  <Option value="low">🟢 低优先级</Option>
+                <Select>
+                  <Option value="high">高</Option>
+                  <Option value="medium">中</Option>
+                  <Option value="low">低</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -809,7 +652,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="reminder" label="提醒">
-                <Select allowClear placeholder="选择提醒时间" size="large">
+                <Select allowClear placeholder="选择提醒时间">
                   <Option value={5}>5分钟前</Option>
                   <Option value={15}>15分钟前</Option>
                   <Option value={30}>30分钟前</Option>
@@ -821,7 +664,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             
             <Col span={12}>
               <Form.Item name="repeat" label="重复">
-                <Select size="large">
+                <Select>
                   <Option value="none">不重复</Option>
                   <Option value="daily">每天</Option>
                   <Option value="weekly">每周</Option>
@@ -833,11 +676,11 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           </Row>
 
           <Form.Item name="location" label="地点">
-            <Input placeholder="输入地点" size="large" prefix={<EnvironmentOutlined />} />
+            <Input placeholder="输入地点" />
           </Form.Item>
 
           <Form.Item name="attendees" label="参与者">
-            <Input placeholder="输入参与者，用逗号分隔" size="large" prefix={<TeamOutlined />} />
+            <Input placeholder="输入参与者，用逗号分隔" />
           </Form.Item>
         </Form>
       </Modal>

@@ -262,6 +262,14 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
     URL.revokeObjectURL(url);
   };
 
+  // JSON 搜索高亮
+  const highlightSearchTerm = (text: string, term: string) => {
+    if (!term) return text;
+    
+    const regex = new RegExp(`(${term})`, 'gi');
+    return text.replace(regex, '<mark style="background-color: #fff2b8;">$1</mark>');
+  };
+
   // 获取差异类型的颜色
   const getDiffColor = (type: string) => {
     switch (type) {

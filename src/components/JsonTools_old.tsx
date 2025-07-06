@@ -52,26 +52,6 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
   const [rightJson, setRightJson] = useState('');
   const [showOnlyDiffs, setShowOnlyDiffs] = useState(false);
 
-  // 递归排序对象键
-  const sortObjectKeys = useCallback((obj: any): any => {
-    if (obj === null || typeof obj !== 'object') {
-      return obj;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map(sortObjectKeys);
-    }
-
-    const sortedKeys = Object.keys(obj).sort();
-    const sortedObj: any = {};
-    
-    for (const key of sortedKeys) {
-      sortedObj[key] = sortObjectKeys(obj[key]);
-    }
-
-    return sortedObj;
-  }, []);
-
   // 实时格式化的 JSON
   const formattedJson = useMemo(() => {
     if (!jsonInput.trim()) return '';
@@ -92,19 +72,150 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
     } catch (error) {
       return ''; // 格式错误时返回空字符串
     }
-  }, [jsonInput, indentSize, sortKeys, compactMode, sortObjectKeys]);
+  }, [jsonInput, indentSize, sortKeys, compactMode]);
 
   // JSON 有效性检查
-  const isValidJson = useMemo(() => {
-    if (!jsonInput.trim()) return true;
+  const jsonValidation = useMemo(() => {
+    if (!jsonInput.trim()) {
+      return { isValid: true, error: null };
+    }
 
     try {
       JSON.parse(jsonInput);
-      return true;
+      return { isValid: true, error: null };
     } catch (error) {
-      return false;
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      return { isValid: false, error: errorMessage };
     }
   }, [jsonInput]);
+
+  // 实时 JSON Diff 比较
+  const diffResult = useMemo(() => {
+    if (!leftJson.trim() || !rightJson.trim()) {
+      return [];
+    }
+
+    try {
+      const leftParsed = JSON.parse(leftJson);
+      const rightParsed = JSON.parse(rightJson);
+      
+      return generateSmartJsonDiff(leftParsed, rightParsed);
+    } catch (error) {
+      return [];
+    }
+  }, [leftJson, rightJson]);
+
+  // JSON 验证和格式化
+  const validateAndFormatJson = (input: string) => {
+    if (!input.trim()) {
+      setFormattedJson('');
+      return { isValid: true, error: null };
+    }
+
+    try {
+      const parsed = JSON.parse(input);
+      let formatted: string;
+
+      if (compactMode) {
+        formatted = JSON.stringify(parsed);
+      } else {
+        if (sortKeys) {
+          const sortedParsed = sortObjectKeys(parsed);
+          formatted = JSON.stringify(sortedParsed, null, indentSize);
+        } else {
+          formatted = JSON.stringify(parsed, null, indentSize);
+        }
+      }
+
+      setFormattedJson(formatted);
+      return { isValid: true, error: null };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      return { isValid: false, error: errorMessage };
+    }
+  };
+
+  // 递归排序对象键
+  const sortObjectKeys = (obj: any): any => {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(sortObjectKeys);
+    }
+
+    const sortedKeys = Object.keys(obj).sort();
+    const sortedObj: any = {};
+    
+    for (const key of sortedKeys) {
+      sortedObj[key] = sortObjectKeys(obj[key]);
+    }
+
+    return sortedObj;
+  };
+
+  // 处理 JSON 输入变化（实时验证）
+  const handleJsonChange = (value: string) => {
+    setJsonInput(value);
+  };
+
+  // 复制格式化后的 JSON
+  const copyFormattedJson = () => {
+    if (formattedJson) {
+      copyToClipboard(formattedJson);
+    } else {
+      message.warning('没有可复制的格式化内容');
+    }
+  };
+
+  // 清空内容
+  const clearContent = () => {
+    setJsonInput('');
+  };
+
+  // 复制到剪贴板
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success('已复制到剪贴板');
+    } catch (error) {
+      message.error('复制失败');
+    }
+  };
+
+  // 文件上传
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setJsonInput(content);
+      handleJsonChange(content);
+    };
+    reader.readAsText(file);
+  };
+
+  // 下载 JSON 文件
+  const downloadJson = (content: string, filename: string = 'formatted.json') => {
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // JSON 搜索高亮
+  const highlightSearchTerm = (text: string, term: string) => {
+    if (!term) return text;
+    
+    const regex = new RegExp(`(${term})`, 'gi');
+    return text.replace(regex, '<mark style="background-color: #fff2b8;">$1</mark>');
+  };
 
   // 智能 JSON 差异生成（忽略对象键值顺序）
   const generateSmartJsonDiff = useCallback((left: any, right: any, path: string = ''): JsonDiffResult[] => {
@@ -197,70 +308,14 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
     return results;
   }, []);
 
-  // 实时 JSON Diff 比较
-  const diffResult = useMemo(() => {
-    if (!leftJson.trim() || !rightJson.trim()) {
-      return [];
-    }
-
-    try {
-      const leftParsed = JSON.parse(leftJson);
-      const rightParsed = JSON.parse(rightJson);
-      
-      return generateSmartJsonDiff(leftParsed, rightParsed);
-    } catch (error) {
-      return [];
-    }
-  }, [leftJson, rightJson, generateSmartJsonDiff]);
+  // 生成 JSON 差异（兼容旧版本）
+  const generateJsonDiff = generateSmartJsonDiff;
 
   // 过滤后的差异结果
   const filteredDiffResult = useMemo(() => {
     if (!showOnlyDiffs) return diffResult;
-    return diffResult.filter((diff: JsonDiffResult) => diff.type !== 'unchanged');
+    return diffResult.filter(diff => diff.type !== 'unchanged');
   }, [diffResult, showOnlyDiffs]);
-
-  // 复制到剪贴板
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      message.success('已复制到剪贴板');
-    } catch (error) {
-      message.error('复制失败');
-    }
-  };
-
-  // 复制格式化后的 JSON
-  const copyFormattedJson = () => {
-    if (formattedJson) {
-      copyToClipboard(formattedJson);
-    } else {
-      message.warning('没有可复制的格式化内容');
-    }
-  };
-
-  // 文件上传
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setJsonInput(content);
-    };
-    reader.readAsText(file);
-  };
-
-  // 下载 JSON 文件
-  const downloadJson = (content: string, filename: string = 'formatted.json') => {
-    const blob = new Blob([content], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   // 获取差异类型的颜色
   const getDiffColor = (type: string) => {
@@ -293,92 +348,88 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
       key: 'formatter',
       label: 'JSON 格式化',
       children: (
-        <div className="space-y-4">
-          {/* JSON 输入 */}
-          <Row gutter={16}>
+        <>
+          <Row gutter={24}>
+            {/* 输入区域 */}
             <Col span={12}>
               <Card 
                 title="JSON 输入"
                 className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
                 extra={
                   <Space>
+                    <Tooltip title="上传文件">
+                      <Button 
+                        icon={<UploadOutlined />} 
+                        onClick={() => document.getElementById('json-file-upload')?.click()}
+                      />
+                    </Tooltip>
                     <input
+                      id="json-file-upload"
                       type="file"
-                      accept=".json,.txt"
-                      onChange={handleFileUpload}
+                      accept=".json"
                       style={{ display: 'none' }}
-                      id="json-upload"
+                      onChange={handleFileUpload}
                     />
-                    <Tooltip title="上传 JSON 文件">
-                      <Button
-                        icon={<UploadOutlined />}
-                        size="small"
-                        onClick={() => document.getElementById('json-upload')?.click()}
-                      >
-                        上传
-                      </Button>
+                    <Tooltip title="清空">
+                      <Button 
+                        icon={<ClearOutlined />}
+                        onClick={() => {
+                          setJsonInput('');
+                          setFormattedJson('');
+                        }}
+                      />
                     </Tooltip>
                   </Space>
                 }
               >
                 <TextArea
                   value={jsonInput}
-                  onChange={(e) => setJsonInput(e.target.value)}
+                  onChange={(e) => handleJsonChange(e.target.value)}
                   placeholder="请输入 JSON 数据..."
-                  className={`font-mono text-sm ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
-                  } ${!isValidJson && jsonInput ? 'border-red-500' : ''}`}
-                  rows={15}
+                  className={`font-mono text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}
+                  rows={20}
                 />
-                {!isValidJson && jsonInput && (
-                  <Text type="danger" className="text-sm mt-2 block">
-                    JSON 格式错误，请检查语法
-                  </Text>
-                )}
               </Card>
             </Col>
 
+            {/* 输出区域 */}
             <Col span={12}>
               <Card 
                 title="格式化结果"
                 className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
                 extra={
                   <Space>
-                    <Tooltip title="复制格式化结果">
-                      <Button
+                    <Tooltip title="复制">
+                      <Button 
                         icon={<CopyOutlined />}
-                        size="small"
-                        onClick={copyFormattedJson}
+                        onClick={() => copyToClipboard(formattedJson)}
                         disabled={!formattedJson}
-                      >
-                        复制
-                      </Button>
+                      />
                     </Tooltip>
-                    <Tooltip title="下载 JSON 文件">
-                      <Button
+                    <Tooltip title="下载">
+                      <Button 
                         icon={<DownloadOutlined />}
-                        size="small"
                         onClick={() => downloadJson(formattedJson)}
                         disabled={!formattedJson}
-                      >
-                        下载
-                      </Button>
+                      />
                     </Tooltip>
                   </Space>
                 }
               >
-                <TextArea
-                  value={formattedJson}
-                  readOnly
-                  className={`font-mono text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}
-                  rows={15}
+                <div
+                  className={`font-mono text-sm p-3 border rounded h-96 overflow-auto ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50'
+                  }`}
+                  dangerouslySetInnerHTML={{
+                    __html: highlightSearchTerm(formattedJson, searchTerm)
+                  }}
                 />
               </Card>
             </Col>
           </Row>
 
           {/* 工具栏 */}
-          <Card className={`${darkMode ? 'bg-gray-800 border-gray-700' : ''}`}>
+          <Card className={`mt-4 ${darkMode ? 'bg-gray-800 border-gray-700' : ''}`}>
             <Row gutter={16} align="middle">
               <Col span={6}>
                 <Space>
@@ -392,7 +443,7 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
                   </Button>
                   <Button 
                     icon={<ClearOutlined />}
-                    onClick={() => setJsonInput('')}
+                    onClick={clearContent}
                   >
                     清空
                   </Button>
@@ -428,7 +479,7 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
 
               <Col span={4}>
                 <div className="flex items-center space-x-2">
-                  <Text className={darkMode ? 'text-gray-300' : ''}>压缩:</Text>
+                  <Text className={darkMode ? 'text-gray-300' : ''}>压缩模式:</Text>
                   <Switch
                     checked={compactMode}
                     onChange={setCompactMode}
@@ -439,7 +490,7 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
 
               <Col span={6}>
                 <Input
-                  placeholder="搜索内容..."
+                  placeholder="搜索字段..."
                   prefix={<SearchOutlined />}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -449,47 +500,39 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
               </Col>
             </Row>
           </Card>
-        </div>
+        </>
       ),
     },
     {
       key: 'diff',
-      label: (
-        <Badge 
-          count={diffResult.filter((d: JsonDiffResult) => d.type !== 'unchanged').length}
-          size="small"
-          offset={[10, 0]}
-        >
-          JSON 对比
-        </Badge>
-      ),
+      label: 'JSON 比较',
       children: (
-        <div className="space-y-4">
-          {/* JSON 对比输入 */}
-          <Row gutter={16}>
+        <>
+          <Row gutter={24}>
             <Col span={12}>
               <Card 
-                title="左侧 JSON"
+                title="JSON A"
                 className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
               >
                 <TextArea
                   value={leftJson}
                   onChange={(e) => setLeftJson(e.target.value)}
-                  placeholder="请输入左侧 JSON 数据..."
+                  placeholder="请输入第一个 JSON..."
                   className={`font-mono text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}
                   rows={15}
                 />
               </Card>
             </Col>
+
             <Col span={12}>
               <Card 
-                title="右侧 JSON"
+                title="JSON B"
                 className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
               >
                 <TextArea
                   value={rightJson}
                   onChange={(e) => setRightJson(e.target.value)}
-                  placeholder="请输入右侧 JSON 数据..."
+                  placeholder="请输入第二个 JSON..."
                   className={`font-mono text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}
                   rows={15}
                 />
@@ -498,7 +541,7 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
           </Row>
 
           {/* 比较工具栏 */}
-          <Card className={`${darkMode ? 'bg-gray-800 border-gray-700' : ''}`}>
+          <Card className={`mt-4 ${darkMode ? 'bg-gray-800 border-gray-700' : ''}`}>
             <Row gutter={16} align="middle">
               <Col span={8}>
                 <Space>
@@ -529,124 +572,108 @@ export const JsonTools: React.FC<JsonToolsProps> = ({ darkMode = false }) => {
               </Col>
 
               <Col span={8}>
-                <Space>
-                  <Badge count={diffResult.filter((d: JsonDiffResult) => d.type === 'added').length} color="#52c41a">
-                    <Button size="small">新增</Button>
-                  </Badge>
-                  <Badge count={diffResult.filter((d: JsonDiffResult) => d.type === 'removed').length} color="#ff4d4f">
-                    <Button size="small">删除</Button>
-                  </Badge>
-                  <Badge count={diffResult.filter((d: JsonDiffResult) => d.type === 'changed').length} color="#fa8c16">
-                    <Button size="small">修改</Button>
-                  </Badge>
-                </Space>
+                {diffResult.length > 0 && (
+                  <Space>
+                    <Badge count={diffResult.filter(d => d.type === 'added').length} color="#52c41a">
+                      <Text className={darkMode ? 'text-gray-300' : ''}>新增</Text>
+                    </Badge>
+                    <Badge count={diffResult.filter(d => d.type === 'removed').length} color="#ff4d4f">
+                      <Text className={darkMode ? 'text-gray-300' : ''}>删除</Text>
+                    </Badge>
+                    <Badge count={diffResult.filter(d => d.type === 'changed').length} color="#fa8c16">
+                      <Text className={darkMode ? 'text-gray-300' : ''}>修改</Text>
+                    </Badge>
+                  </Space>
+                )}
               </Col>
             </Row>
           </Card>
 
           {/* 差异结果 */}
-          {diffResult.length > 0 && (
+          {filteredDiffResult.length > 0 && (
             <Card 
-              title={`对比结果 (${filteredDiffResult.length} 项)`}
-              className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
+              title="差异结果"
+              className={`mt-4 ${darkMode ? 'bg-gray-800 border-gray-700' : ''}`}
             >
-              <div className={`max-h-96 overflow-auto ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} rounded p-4`}>
-                {filteredDiffResult.map((diff: JsonDiffResult, index: number) => (
+              <div className="space-y-2 max-h-96 overflow-auto">
+                {filteredDiffResult.map((diff, index) => (
                   <div
                     key={index}
-                    className={`flex items-center justify-between py-2 px-3 mb-2 rounded ${
-                      darkMode ? 'bg-gray-800' : 'bg-white'
-                    } border-l-4`}
+                    className={`p-3 rounded border-l-4 ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-50'
+                    }`}
                     style={{ borderLeftColor: getDiffColor(diff.type) }}
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <Text 
-                          className={`font-mono text-sm ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}
-                        >
-                          {diff.path}
-                        </Text>
-                        <Badge 
-                          color={getDiffColor(diff.type)}
-                          text={getDiffLabel(diff.type)}
-                        />
-                      </div>
-                      
-                      {diff.type === 'changed' && (
-                        <div className="mt-2 space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <Text className="text-red-500 text-xs">- </Text>
-                            <Text className={`font-mono text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              {JSON.stringify(diff.leftValue)}
-                            </Text>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Text className="text-green-500 text-xs">+ </Text>
-                            <Text className={`font-mono text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              {JSON.stringify(diff.rightValue)}
-                            </Text>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {diff.type === 'added' && (
-                        <div className="mt-2">
-                          <div className="flex items-center space-x-2">
-                            <Text className="text-green-500 text-xs">+ </Text>
-                            <Text className={`font-mono text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              {JSON.stringify(diff.rightValue)}
-                            </Text>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {diff.type === 'removed' && (
-                        <div className="mt-2">
-                          <div className="flex items-center space-x-2">
-                            <Text className="text-red-500 text-xs">- </Text>
-                            <Text className={`font-mono text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              {JSON.stringify(diff.leftValue)}
-                            </Text>
-                          </div>
-                        </div>
-                      )}
+                    <div className="flex items-center justify-between mb-2">
+                      <Text 
+                        strong 
+                        className={`font-mono ${darkMode ? 'text-white' : ''}`}
+                      >
+                        {diff.path}
+                      </Text>
+                      <Badge 
+                        color={getDiffColor(diff.type)} 
+                        text={getDiffLabel(diff.type)}
+                      />
                     </div>
                     
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<CopyOutlined />}
-                      onClick={() => copyToClipboard(diff.path)}
-                    />
+                    {diff.type === 'changed' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Text type="danger" className="text-xs">原值:</Text>
+                          <div className={`font-mono text-sm p-2 rounded ${
+                            darkMode ? 'bg-gray-800' : 'bg-red-50'
+                          }`}>
+                            {JSON.stringify(diff.leftValue, null, 2)}
+                          </div>
+                        </div>
+                        <div>
+                          <Text type="success" className="text-xs">新值:</Text>
+                          <div className={`font-mono text-sm p-2 rounded ${
+                            darkMode ? 'bg-gray-800' : 'bg-green-50'
+                          }`}>
+                            {JSON.stringify(diff.rightValue, null, 2)}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {diff.type === 'added' && (
+                      <div className={`font-mono text-sm p-2 rounded ${
+                        darkMode ? 'bg-gray-800' : 'bg-green-50'
+                      }`}>
+                        <Text type="success" className="text-xs">新增:</Text>
+                        <br />
+                        {JSON.stringify(diff.rightValue, null, 2)}
+                      </div>
+                    )}
+                    
+                    {diff.type === 'removed' && (
+                      <div className={`font-mono text-sm p-2 rounded ${
+                        darkMode ? 'bg-gray-800' : 'bg-red-50'
+                      }`}>
+                        <Text type="danger" className="text-xs">删除:</Text>
+                        <br />
+                        {JSON.stringify(diff.leftValue, null, 2)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </Card>
           )}
-
-          {diffResult.length === 0 && leftJson && rightJson && (
-            <Card className={darkMode ? 'bg-gray-800 border-gray-700' : ''}>
-              <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                {leftJson && rightJson ? '两个 JSON 完全相同！' : '请输入两个 JSON 进行比较'}
-              </div>
-            </Card>
-          )}
-        </div>
+        </>
       ),
     },
   ];
 
   return (
-    <div className="json-tools">
-      <Title level={2} className={`mb-6 ${darkMode ? 'text-white' : ''}`}>
+    <div className="space-y-6">
+      <Title level={2} className={darkMode ? 'text-white' : ''}>
         JSON 工具箱
       </Title>
-      
-      <Tabs
-        items={tabItems}
-        className={darkMode ? 'dark-tabs' : ''}
-        size="large"
-      />
+
+      <Tabs defaultActiveKey="parser" items={tabItems} className={darkMode ? 'dark-tabs' : ''} />
     </div>
   );
 };

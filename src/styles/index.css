@@ -428,3 +428,167 @@ body {
     margin-top: 16px !important;
   }
 }
+
+/* 日程管理样式 */
+.calendar-container .calendar-grid {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.calendar-container .ant-card {
+  border-radius: 16px !important;
+  backdrop-filter: blur(10px);
+}
+
+.calendar-container .event-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.calendar-container .event-card:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.dark .calendar-container .ant-card {
+  background: rgba(31, 41, 55, 0.8) !important;
+  border-color: rgba(75, 85, 99, 0.3) !important;
+}
+
+.dark .calendar-container .event-card {
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.8) 0%, rgba(17, 24, 39, 0.8) 100%);
+  border-color: rgba(75, 85, 99, 0.3);
+}
+
+/* 日历网格美化 */
+.calendar-grid .grid > div {
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-grid .grid > div::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.calendar-grid .grid > div:hover::before {
+  opacity: 1;
+}
+
+/* 事件弹窗样式 */
+.event-modal .ant-modal-content {
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.event-modal .ant-modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none !important;
+  color: white;
+}
+
+.event-modal .ant-modal-title {
+  color: white !important;
+}
+
+.event-modal .ant-modal-close {
+  color: white !important;
+}
+
+.event-modal .ant-modal-close:hover {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* 按钮美化 */
+.calendar-container .ant-btn {
+  border-radius: 8px !important;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.calendar-container .ant-btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+.calendar-container .ant-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+}
+
+/* 标签美化 */
+.calendar-container .ant-tag {
+  border-radius: 20px !important;
+  font-weight: 500;
+  padding: 4px 12px !important;
+  border: none !important;
+}
+
+/* 输入框美化 */
+.calendar-container .ant-input,
+.calendar-container .ant-select-selector,
+.calendar-container .ant-picker {
+  border-radius: 8px !important;
+  border: 2px solid #e5e7eb !important;
+  transition: all 0.3s ease;
+}
+
+.calendar-container .ant-input:focus,
+.calendar-container .ant-select-focused .ant-select-selector,
+.calendar-container .ant-picker:hover,
+.calendar-container .ant-picker-focused {
+  border-color: #667eea !important;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+/* 动画效果 */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.calendar-container .fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.calendar-container .slide-in-up {
+  animation: slideInUp 0.5s ease-out;
+}
+
+/* 日程管理响应式设计 */
+@media (max-width: 768px) {
+  .calendar-container .calendar-grid .grid {
+    gap: 8px !important;
+  }
+  
+  .calendar-container .calendar-grid .grid > div {
+    min-height: 80px !important;
+    padding: 8px !important;
+  }
+}
