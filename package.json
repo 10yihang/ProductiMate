@@ -12,7 +12,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
     "@tailwindcss/postcss": "^4.1.11",
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2",
     "@types/lodash": "^4.17.20",
     "@types/react": "^19.1.8",
