@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Card,
   Button,
@@ -16,6 +17,7 @@ import {
   Badge,
   Statistic,
   Tooltip,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -50,80 +52,107 @@ interface Habit {
   target: number; // 目标次数（每天/每周）
   unit: string; // 单位（次、分钟、页等）
   frequency: 'daily' | 'weekly';
-  createdAt: string;
-  isActive: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface HabitRecord {
   id: string;
-  habitId: string;
+  habit_id: string;
   date: string;
   completed: boolean;
   value?: number; // 实际完成数量
   note?: string;
+  created_at: string;
+}
+
+interface CreateHabitRequest {
+  name: string;
+  description?: string;
+  category: string;
+  color: string;
+  target: number;
+  unit: string;
+  frequency: string;
+  is_active: boolean;
+}
+
+interface UpdateHabitRequest {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  color: string;
+  target: number;
+  unit: string;
+  frequency: string;
+  is_active: boolean;
 }
 
 export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) => {
-  const [habits, setHabits] = useState<Habit[]>([
-    {
-      id: '1',
-      name: '每日阅读',
-      description: '阅读30分钟提升自我',
-      category: 'study',
-      color: '#1890ff',
-      target: 30,
-      unit: '分钟',
-      frequency: 'daily',
-      createdAt: dayjs().subtract(7, 'day').format('YYYY-MM-DD'),
-      isActive: true,
-    },
-    {
-      id: '2',
-      name: '晨练',
-      description: '每天早上运动保持健康',
-      category: 'health',
-      color: '#52c41a',
-      target: 1,
-      unit: '次',
-      frequency: 'daily',
-      createdAt: dayjs().subtract(5, 'day').format('YYYY-MM-DD'),
-      isActive: true,
-    },
-    {
-      id: '3',
-      name: '写日记',
-      description: '记录每天的感悟和思考',
-      category: 'personal',
-      color: '#fa8c16',
-      target: 1,
-      unit: '篇',
-      frequency: 'daily',
-      createdAt: dayjs().subtract(3, 'day').format('YYYY-MM-DD'),
-      isActive: true,
-    },
-  ]);
-
-  const [records, setRecords] = useState<HabitRecord[]>([
-    // 生成一些示例数据
-    ...Array.from({ length: 21 }, (_, i) => {
-      const date = dayjs().subtract(i, 'day').format('YYYY-MM-DD');
-      return habits.flatMap(habit => ({
-        id: `${habit.id}-${date}`,
-        habitId: habit.id,
-        date,
-        completed: Math.random() > 0.3, // 70% 完成率
-        value: habit.target,
-      }));
-    }).flat(),
-  ]);
-
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [records, setRecords] = useState<HabitRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [showHabitModal, setShowHabitModal] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
+  const [loading, setLoading] = useState(true);
   const [form] = Form.useForm();
 
+  // 从后端加载习惯
+  const loadHabits = async () => {
+    try {
+      const fetchedHabits: Habit[] = await invoke('get_all_habits');
+      setHabits(fetchedHabits);
+    } catch (error) {
+      console.error('Failed to fetch habits:', error);
+      message.error('加载习惯失败');
+    }
+  };
+
+  // 从后端加载习惯记录
+  const loadHabitRecords = async () => {
+    setLoading(true);
+    try {
+      // 获取最近30天的记录
+      const startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+      const endDate = dayjs().format('YYYY-MM-DD');
+      
+      const allRecords: HabitRecord[] = [];
+      for (const habit of habits) {
+        try {
+          const habitRecords: HabitRecord[] = await invoke('get_habit_records_by_date_range', {
+            habitId: habit.id,
+            startDate,
+            endDate,
+          });
+          allRecords.push(...habitRecords);
+        } catch (error) {
+          console.error(`Failed to fetch records for habit ${habit.id}:`, error);
+        }
+      }
+      setRecords(allRecords);
+    } catch (error) {
+      console.error('Failed to fetch habit records:', error);
+      message.error('加载习惯记录失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 组件加载时获取数据
+  useEffect(() => {
+    loadHabits();
+  }, []);
+
+  // 当习惯列表更新时，重新加载记录
+  useEffect(() => {
+    if (habits.length > 0) {
+      loadHabitRecords();
+    }
+  }, [habits]);
   // 获取指定日期的习惯记录
   const getRecordsForDate = (date: string) => {
     return records.filter(record => record.date === date);
@@ -136,7 +165,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
     
     while (currentDate.isAfter(dayjs().subtract(365, 'day'))) {
       const dateStr = currentDate.format('YYYY-MM-DD');
-      const record = records.find(r => r.habitId === habitId && r.date === dateStr);
+      const record = records.find(r => r.habit_id === habitId && r.date === dateStr);
       
       if (record?.completed) {
         streak++;
@@ -153,7 +182,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
   const getCompletionRate = (habitId: string, days: number = 30) => {
     const startDate = dayjs().subtract(days, 'day');
     const relevantRecords = records.filter(r => 
-      r.habitId === habitId && 
+      r.habit_id === habitId && 
       dayjs(r.date).isAfter(startDate)
     );
     
@@ -162,69 +191,87 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
     const completedCount = relevantRecords.filter(r => r.completed).length;
     return Math.round((completedCount / relevantRecords.length) * 100);
   };
-
   // 切换习惯完成状态
-  const toggleHabitRecord = (habitId: string, date: string) => {
-    const existingRecord = records.find(r => r.habitId === habitId && r.date === date);
-    
-    if (existingRecord) {
-      setRecords(prev => prev.map(r => 
-        r.id === existingRecord.id 
-          ? { ...r, completed: !r.completed }
-          : r
-      ));
-    } else {
-      const habit = habits.find(h => h.id === habitId);
-      const newRecord: HabitRecord = {
-        id: `${habitId}-${date}-${Date.now()}`,
-        habitId,
-        date,
-        completed: true,
-        value: habit?.target || 1,
-      };
-      setRecords(prev => [...prev, newRecord]);
+  const toggleHabitRecord = async (habitId: string, date: string) => {
+    try {
+      const existingRecord = records.find(r => r.habit_id === habitId && r.date === date);
+      
+      if (existingRecord) {
+        // 更新现有记录
+        await invoke('update_habit_record', {
+          id: existingRecord.id,
+          completed: !existingRecord.completed,
+          value: existingRecord.value,
+          note: existingRecord.note,
+        });
+      } else {
+        // 创建新记录
+        const habit = habits.find(h => h.id === habitId);
+        await invoke('create_habit_record', {
+          request: {
+            habit_id: habitId,
+            date,
+            completed: true,
+            value: habit?.target || 1,
+            note: null,
+          }
+        });
+      }
+      
+      // 重新加载记录
+      await loadHabitRecords();
+      message.success('打卡状态已更新');
+    } catch (error) {
+      console.error('Failed to toggle habit record:', error);
+      message.error('更新打卡状态失败');
     }
-    
-    message.success('打卡状态已更新');
   };
-
   // 创建或编辑习惯
-  const handleHabitSubmit = (values: any) => {
-    const habitData: Habit = {
-      id: editingHabit?.id || Date.now().toString(),
-      name: values.name,
-      description: values.description,
-      category: values.category,
-      color: values.color,
-      target: values.target,
-      unit: values.unit,
-      frequency: values.frequency,
-      createdAt: editingHabit?.createdAt || dayjs().format('YYYY-MM-DD'),
-      isActive: values.isActive !== false,
-    };
+  const handleHabitSubmit = async (values: any) => {
+    try {
+      const habitData: CreateHabitRequest | UpdateHabitRequest = {
+        ...(editingHabit ? { id: editingHabit.id } : {}),
+        name: values.name,
+        description: values.description,
+        category: values.category,
+        color: values.color,
+        target: values.target,
+        unit: values.unit,
+        frequency: values.frequency,
+        is_active: values.is_active !== false,
+      };
 
-    if (editingHabit) {
-      setHabits(prev => prev.map(h => h.id === editingHabit.id ? habitData : h));
-      message.success('习惯已更新');
-    } else {
-      setHabits(prev => [...prev, habitData]);
-      message.success('习惯已创建');
+      if (editingHabit) {
+        await invoke('update_habit', { request: habitData });
+        message.success('习惯已更新');
+      } else {
+        await invoke('create_habit', { request: habitData });
+        message.success('习惯已创建');
+      }
+
+      await loadHabits();
+      setShowHabitModal(false);
+      setEditingHabit(null);
+      form.resetFields();
+    } catch (error) {
+      console.error('Failed to save habit:', error);
+      message.error('保存习惯失败');
     }
-
-    setShowHabitModal(false);
-    setEditingHabit(null);
-    form.resetFields();
   };
-
   // 删除习惯
   const handleDeleteHabit = (habitId: string) => {
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除这个习惯吗？相关的打卡记录也会被删除。',
-      onOk: () => {
-        setHabits(prev => prev.filter(h => h.id !== habitId));
-        setRecords(prev => prev.filter(r => r.habitId !== habitId));
-        message.success('习惯已删除');
+      onOk: async () => {
+        try {
+          await invoke('delete_habit', { id: habitId });
+          await loadHabits();
+          message.success('习惯已删除');
+        } catch (error) {
+          console.error('Failed to delete habit:', error);
+          message.error('删除习惯失败');
+        }
       },
     });
   };
@@ -235,13 +282,12 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
     form.setFieldsValue(habit);
     setShowHabitModal(true);
   };
-
   // 日历单元格渲染
   const dateCellRender = (value: Dayjs) => {
     const dateStr = value.format('YYYY-MM-DD');
     const dayRecords = getRecordsForDate(dateStr);
     const completedCount = dayRecords.filter(r => r.completed).length;
-    const totalCount = habits.filter(h => h.isActive).length;
+    const totalCount = habits.filter(h => h.is_active).length;
     
     if (totalCount === 0) return null;
     
@@ -263,11 +309,10 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
       </div>
     );
   };
-
   // 渲染习惯卡片
   const renderHabitCard = (habit: Habit) => {
     const todayRecord = records.find(r => 
-      r.habitId === habit.id && 
+      r.habit_id === habit.id && 
       r.date === dayjs().format('YYYY-MM-DD')
     );
     const streak = getStreakDays(habit.id);
@@ -366,14 +411,13 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
           icon={<PlusOutlined />}
           onClick={() => {
             setEditingHabit(null);
-            form.resetFields();
-            form.setFieldsValue({
+            form.resetFields();            form.setFieldsValue({
               category: 'personal',
               color: '#1890ff',
               frequency: 'daily',
               target: 1,
               unit: '次',
-              isActive: true,
+              is_active: true,
             });
             setShowHabitModal(true);
           }}
@@ -385,10 +429,9 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
       {/* 概览统计 */}
       <Row gutter={16}>
         <Col span={6}>
-          <Card className={darkMode ? 'bg-gray-800 border-gray-700' : ''}>
-            <Statistic
+          <Card className={darkMode ? 'bg-gray-800 border-gray-700' : ''}>            <Statistic
               title="活跃习惯"
-              value={habits.filter(h => h.isActive).length}
+              value={habits.filter(h => h.is_active).length}
               suffix="个"
               prefix={<CalendarOutlined style={{ color: '#1890ff' }} />}
             />
@@ -399,7 +442,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
             <Statistic
               title="今日完成"
               value={getRecordsForDate(dayjs().format('YYYY-MM-DD')).filter(r => r.completed).length}
-              suffix={`/${habits.filter(h => h.isActive).length}`}
+              suffix={`/${habits.filter(h => h.is_active).length}`}
               prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
             />
           </Card>
@@ -432,14 +475,13 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
           <Card 
             title="我的习惯"
             className={darkMode ? 'bg-gray-800 border-gray-700' : ''}
-          >
-            {habits.filter(h => h.isActive).length === 0 ? (
+          >            {habits.filter(h => h.is_active).length === 0 ? (
               <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 还没有创建任何习惯，点击上方按钮开始吧！
               </div>
             ) : (
               <Row gutter={[16, 16]}>
-                {habits.filter(h => h.isActive).map(habit => (
+                {habits.filter(h => h.is_active).map(habit => (
                   <Col span={8} key={habit.id}>
                     {renderHabitCard(habit)}
                   </Col>
@@ -548,9 +590,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
                 </Select>
               </Form.Item>
             </Col>
-          </Row>
-
-          <Form.Item name="isActive" valuePropName="checked">
+          </Row>          <Form.Item name="is_active" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="禁用" />
           </Form.Item>
         </Form>
@@ -585,10 +625,9 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({ darkMode = false }) 
                 prefix={<TrophyOutlined style={{ color: '#52c41a' }} />}
               />
             </Col>
-            <Col span={8}>
-              <Statistic
+            <Col span={8}>              <Statistic
                 title="总完成次数"
-                value={selectedHabit ? records.filter(r => r.habitId === selectedHabit.id && r.completed).length : 0}
+                value={selectedHabit ? records.filter(r => r.habit_id === selectedHabit.id && r.completed).length : 0}
                 suffix="次"
                 prefix={<CheckCircleOutlined style={{ color: '#1890ff' }} />}
               />

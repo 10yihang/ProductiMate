@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 ./src-tauri/target/*
+src-tauri/toolbox.db-shm
+*.db*
+src-tauri/toolbox.db
+src-tauri/toolbox.db-shm
+src-tauri/toolbox.db
+src-tauri/toolbox.db-wal

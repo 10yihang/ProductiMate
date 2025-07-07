@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Card,
   Button,
@@ -19,6 +20,7 @@ import {
   Tooltip,
   Badge,
   Avatar,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -54,124 +56,134 @@ interface CalendarEvent {
   title: string;
   description?: string;
   date: string;
-  startTime?: string;
-  endTime?: string;
-  type: 'work' | 'personal' | 'health' | 'study' | 'meeting' | 'other';
+  start_time?: string;
+  end_time?: string;
+  event_type: 'work' | 'personal' | 'health' | 'study' | 'meeting' | 'other';
   priority: 'high' | 'medium' | 'low';
-  isAllDay: boolean;
+  is_all_day: boolean;
   reminder?: number; // 提前多少分钟提醒
-  repeat?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  repeat_type?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  location?: string;
+  attendees?: string; // JSON string of array
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreateEventRequest {
+  title: string;
+  description?: string;
+  date: string;
+  start_time?: string;
+  end_time?: string;
+  event_type: string;
+  priority: string;
+  is_all_day: boolean;
+  reminder?: number;
+  repeat_type?: string;
+  location?: string;
+  attendees?: string[];
+}
+
+interface UpdateEventRequest {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  start_time?: string;
+  end_time?: string;
+  event_type: string;
+  priority: string;
+  is_all_day: boolean;
+  reminder?: number;
+  repeat_type?: string;
   location?: string;
   attendees?: string[];
 }
 
 export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
-  const [events, setEvents] = useState<CalendarEvent[]>([
-    {
-      id: '1',
-      title: '团队会议',
-      description: '讨论项目进度和下周计划',
-      date: dayjs().format('YYYY-MM-DD'),
-      startTime: '09:00',
-      endTime: '10:30',
-      type: 'meeting',
-      priority: 'high',
-      isAllDay: false,
-      reminder: 15,
-      repeat: 'weekly',
-      location: '会议室A',
-      attendees: ['张三', '李四'],
-    },
-    {
-      id: '2',
-      title: '健身锻炼',
-      description: '有氧运动30分钟',
-      date: dayjs().format('YYYY-MM-DD'),
-      startTime: '18:00',
-      endTime: '19:00',
-      type: 'health',
-      priority: 'medium',
-      isAllDay: false,
-      reminder: 30,
-      repeat: 'daily',
-    },
-    {
-      id: '3',
-      title: '项目评审',
-      description: '月度项目进展评审会议',
-      date: dayjs().add(1, 'day').format('YYYY-MM-DD'),
-      startTime: '14:00',
-      endTime: '16:00',
-      type: 'work',
-      priority: 'high',
-      isAllDay: false,
-      reminder: 60,
-      repeat: 'monthly',
-      location: '大会议室',
-      attendees: ['王五', '赵六', '钱七'],
-    },
-  ]);
-  
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [currentView, setCurrentView] = useState<'month' | 'week' | 'day'>('month');
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [loading, setLoading] = useState(true);
   const [form] = Form.useForm();
 
+  // 从后端加载事件
+  const loadEvents = async () => {
+    setLoading(true);
+    try {
+      const fetchedEvents: CalendarEvent[] = await invoke('get_all_events');
+      const processedEvents = fetchedEvents.map(event => ({
+        ...event,
+        attendees: event.attendees ? JSON.parse(event.attendees) : [],
+      }));
+      setEvents(processedEvents);
+    } catch (error) {
+      console.error('Failed to fetch events:', error);
+      message.error('加载事件失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 组件加载时获取事件
+  useEffect(() => {
+    loadEvents();
+  }, []);
   // 获取指定日期的事件
   const getEventsForDate = (date: string) => {
     let dateEvents = events.filter(event => event.date === date);
-    
+
     if (filterType !== 'all') {
-      dateEvents = dateEvents.filter(event => event.type === filterType);
+      dateEvents = dateEvents.filter(event => event.event_type === filterType);
     }
-    
+
     return dateEvents.sort((a, b) => {
-      if (a.isAllDay && !b.isAllDay) return -1;
-      if (!a.isAllDay && b.isAllDay) return 1;
-      if (!a.isAllDay && !b.isAllDay) {
-        return (a.startTime || '').localeCompare(b.startTime || '');
+      if (a.is_all_day && !b.is_all_day) return -1;
+      if (!a.is_all_day && b.is_all_day) return 1;
+      if (!a.is_all_day && !b.is_all_day) {
+        return (a.start_time || '').localeCompare(b.start_time || '');
       }
       return 0;
     });
   };
-
   // 事件类型配置
   const eventTypeConfig = {
-    work: { 
-      label: '工作', 
-      color: '#1890ff', 
+    work: {
+      label: '工作',
+      color: '#1890ff',
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       icon: '💼'
     },
-    personal: { 
-      label: '个人', 
-      color: '#52c41a', 
+    personal: {
+      label: '个人',
+      color: '#52c41a',
       gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
       icon: '🏠'
     },
-    health: { 
-      label: '健康', 
-      color: '#fa8c16', 
+    health: {
+      label: '健康',
+      color: '#fa8c16',
       gradient: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
       icon: '💪'
     },
-    study: { 
-      label: '学习', 
-      color: '#722ed1', 
+    study: {
+      label: '学习',
+      color: '#722ed1',
       gradient: 'linear-gradient(135deg, #a8caba 0%, #5d4e75 100%)',
       icon: '📚'
     },
-    meeting: { 
-      label: '会议', 
-      color: '#eb2f96', 
+    meeting: {
+      label: '会议',
+      color: '#eb2f96',
       gradient: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
       icon: '🤝'
     },
-    other: { 
-      label: '其他', 
-      color: '#8c8c8c', 
+    other: {
+      label: '其他',
+      color: '#8c8c8c',
       gradient: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
       icon: '📌'
     },
@@ -186,68 +198,79 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
     };
     return colors[priority as keyof typeof colors];
   };
-
   // 创建或编辑事件
-  const handleEventSubmit = (values: any) => {
-    const eventData: CalendarEvent = {
-      id: editingEvent?.id || Date.now().toString(),
-      title: values.title,
-      description: values.description,
-      date: values.date.format('YYYY-MM-DD'),
-      startTime: values.isAllDay ? undefined : values.timeRange?.[0]?.format('HH:mm'),
-      endTime: values.isAllDay ? undefined : values.timeRange?.[1]?.format('HH:mm'),
-      type: values.type,
-      priority: values.priority,
-      isAllDay: values.isAllDay,
-      reminder: values.reminder,
-      repeat: values.repeat,
-      location: values.location,
-      attendees: values.attendees?.split(',').map((a: string) => a.trim()).filter(Boolean),
-    };
+  const handleEventSubmit = async (values: any) => {
+    try {
+      const eventData: CreateEventRequest | UpdateEventRequest = {
+        ...(editingEvent ? { id: editingEvent.id } : {}),
+        title: values.title,
+        description: values.description,
+        date: values.date.format('YYYY-MM-DD'),
+        start_time: values.is_all_day ? undefined : values.timeRange?.[0]?.format('HH:mm'),
+        end_time: values.is_all_day ? undefined : values.timeRange?.[1]?.format('HH:mm'),
+        event_type: values.event_type,
+        priority: values.priority,
+        is_all_day: values.is_all_day,
+        reminder: values.reminder,
+        repeat_type: values.repeat_type,
+        location: values.location,
+        attendees: values.attendees?.split(',').map((a: string) => a.trim()).filter(Boolean),
+      };
 
-    if (editingEvent) {
-      setEvents(prev => prev.map(e => e.id === editingEvent.id ? eventData : e));
-      message.success('事件已更新');
-    } else {
-      setEvents(prev => [...prev, eventData]);
-      message.success('事件已创建');
+      if (editingEvent) {
+        await invoke('update_event', { request: eventData });
+        message.success('事件已更新');
+      } else {
+        await invoke('create_event', { request: eventData });
+        message.success('事件已创建');
+      }
+
+      await loadEvents();
+      setShowEventModal(false);
+      setEditingEvent(null);
+      form.resetFields();
+    } catch (error) {
+      console.error('Failed to save event:', error);
+      message.error('保存事件失败');
     }
-
-    setShowEventModal(false);
-    setEditingEvent(null);
-    form.resetFields();
   };
-
   // 删除事件
   const handleDeleteEvent = (eventId: string) => {
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除这个事件吗？',
-      onOk: () => {
-        setEvents(prev => prev.filter(e => e.id !== eventId));
-        message.success('事件已删除');
+      onOk: async () => {
+        try {
+          await invoke('delete_event', { id: eventId });
+          await loadEvents();
+          message.success('事件已删除');
+        } catch (error) {
+          console.error('Failed to delete event:', error);
+          message.error('删除事件失败');
+        }
       },
     });
   };
-
   // 编辑事件
   const handleEditEvent = (event: CalendarEvent) => {
     setEditingEvent(event);
+    const attendeesList = event.attendees ?
+      (typeof event.attendees === 'string' ? JSON.parse(event.attendees) : event.attendees) : [];
     form.setFieldsValue({
       title: event.title,
       description: event.description,
       date: dayjs(event.date),
-      timeRange: event.startTime && event.endTime ? [
-        dayjs(event.startTime, 'HH:mm'),
-        dayjs(event.endTime, 'HH:mm'),
+      timeRange: event.start_time && event.end_time ? [
+        dayjs(event.start_time, 'HH:mm'),
+        dayjs(event.end_time, 'HH:mm'),
       ] : undefined,
-      type: event.type,
+      event_type: event.event_type,
       priority: event.priority,
-      isAllDay: event.isAllDay,
+      is_all_day: event.is_all_day,
       reminder: event.reminder,
-      repeat: event.repeat,
+      repeat_type: event.repeat_type,
       location: event.location,
-      attendees: event.attendees?.join(', '),
+      attendees: attendeesList.join(', '),
     });
     setShowEventModal(true);
   };
@@ -258,35 +281,34 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
     const endOfMonth = selectedDate.endOf('month');
     const startDate = startOfMonth.startOf('week');
     const endDate = endOfMonth.endOf('week');
-    
+
     const weeks: Dayjs[][] = [];
     let currentWeek: Dayjs[] = [];
     let current = startDate;
-    
+
     while (current.isBefore(endDate) || current.isSame(endDate, 'day')) {
       currentWeek.push(current);
-      
+
       if (currentWeek.length === 7) {
         weeks.push(currentWeek);
         currentWeek = [];
       }
-      
+
       current = current.add(1, 'day');
     }
-    
+
     return (
       <div className="calendar-grid">
         {/* 星期标题 */}
         <div className="grid grid-cols-7 gap-3 mb-4">
           {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((day, index) => (
-            <div key={day} className={`text-center py-3 font-semibold text-sm rounded-lg ${
-              darkMode ? 'text-gray-300 bg-gray-800' : 'text-gray-600 bg-gray-50'
-            } ${index === 0 || index === 6 ? (darkMode ? 'text-blue-400' : 'text-blue-600') : ''}`}>
+            <div key={day} className={`text-center py-3 font-semibold text-sm rounded-lg ${darkMode ? 'text-gray-300 bg-gray-800' : 'text-gray-600 bg-gray-50'
+              } ${index === 0 || index === 6 ? (darkMode ? 'text-blue-400' : 'text-blue-600') : ''}`}>
               {day}
             </div>
           ))}
         </div>
-        
+
         {/* 日期网格 */}
         <div className="grid grid-cols-7 gap-3">
           {weeks.flat().map(date => {
@@ -295,49 +317,44 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             const isCurrentMonth = date.isSame(selectedDate, 'month');
             const isToday = date.isSame(dayjs(), 'day');
             const isSelected = date.isSame(selectedDate, 'day');
-            
+
             return (
               <div
                 key={dateStr}
-                className={`min-h-32 p-3 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                  darkMode 
-                    ? 'border-gray-600 hover:border-gray-500 bg-gray-800 hover:bg-gray-750' 
+                className={`min-h-32 p-3 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg ${darkMode
+                    ? 'border-gray-600 hover:border-gray-500 bg-gray-800 hover:bg-gray-750'
                     : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
-                } ${
-                  !isCurrentMonth 
+                  } ${!isCurrentMonth
                     ? 'opacity-40'
                     : ''
-                } ${
-                  isToday 
-                    ? darkMode 
-                      ? 'bg-blue-900/50 border-blue-500 ring-2 ring-blue-500/20' 
+                  } ${isToday
+                    ? darkMode
+                      ? 'bg-blue-900/50 border-blue-500 ring-2 ring-blue-500/20'
                       : 'bg-blue-50 border-blue-300 ring-2 ring-blue-300/20'
                     : ''
-                } ${
-                  isSelected && !isToday
+                  } ${isSelected && !isToday
                     ? darkMode ? 'bg-gray-700 border-gray-500' : 'bg-gray-100 border-gray-400'
                     : ''
-                }`}
+                  }`}
                 onClick={() => setSelectedDate(date)}
               >
-                <div className={`text-sm font-semibold mb-2 flex items-center justify-between ${
-                  isToday ? 'text-blue-600 font-bold' : darkMode ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className={`text-sm font-semibold mb-2 flex items-center justify-between ${isToday ? 'text-blue-600 font-bold' : darkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
                   <span className={isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs' : ''}>
                     {date.date()}
                   </span>
                   {dayEvents.length > 0 && (
-                    <Badge 
-                      count={dayEvents.length} 
+                    <Badge
+                      count={dayEvents.length}
                       size="small"
                       style={{ backgroundColor: '#1890ff' }}
                     />
                   )}
                 </div>
-                
+
                 <div className="space-y-1">
                   {dayEvents.slice(0, 3).map(event => {
-                    const typeConfig = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
+                    const typeConfig = eventTypeConfig[event.event_type as keyof typeof eventTypeConfig];
                     return (
                       <Popover
                         key={event.id}
@@ -351,12 +368,11 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                               <Text className="text-sm text-gray-600 block mb-2">
                                 {event.description}
                               </Text>
-                            )}
-                            <div className="space-y-1 text-xs">
-                              {!event.isAllDay && (
+                            )}                            <div className="space-y-1 text-xs">
+                              {!event.is_all_day && (
                                 <div className="flex items-center space-x-1">
                                   <ClockCircleOutlined />
-                                  <span>{event.startTime} - {event.endTime}</span>
+                                  <span>{event.start_time} - {event.end_time}</span>
                                 </div>
                               )}
                               {event.location && (
@@ -372,7 +388,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                       >
                         <div
                           className={`text-xs p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-105 text-white font-medium shadow-sm`}
-                          style={{ 
+                          style={{
                             background: typeConfig.gradient,
                             border: `1px solid ${typeConfig.color}20`
                           }}
@@ -384,10 +400,9 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                           <div className="flex items-center space-x-1">
                             <span>{typeConfig.icon}</span>
                             <span className="truncate flex-1">{event.title}</span>
-                          </div>
-                          {!event.isAllDay && (
+                          </div>                          {!event.is_all_day && (
                             <div className="text-xs opacity-80 mt-1">
-                              {event.startTime}
+                              {event.start_time}
                             </div>
                           )}
                         </div>
@@ -395,9 +410,8 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                     );
                   })}
                   {dayEvents.length > 3 && (
-                    <div className={`text-xs p-1 rounded text-center ${
-                      darkMode ? 'text-gray-400 bg-gray-700' : 'text-gray-500 bg-gray-100'
-                    }`}>
+                    <div className={`text-xs p-1 rounded text-center ${darkMode ? 'text-gray-400 bg-gray-700' : 'text-gray-500 bg-gray-100'
+                      }`}>
                       +{dayEvents.length - 3} 更多
                     </div>
                   )}
@@ -413,9 +427,9 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
   // 渲染事件列表
   const renderEventList = () => {
     const todayEvents = getEventsForDate(selectedDate.format('YYYY-MM-DD'));
-    
+
     return (
-      <Card 
+      <Card
         title={
           <div className="flex items-center space-x-2">
             <CalendarOutlined className="text-blue-600" />
@@ -424,20 +438,20 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
         }
         className={`${darkMode ? 'bg-gray-800 border-gray-700' : ''} shadow-lg`}
         extra={
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             icon={<PlusOutlined />}
             className="rounded-lg"
             onClick={() => {
               setEditingEvent(null);
               form.resetFields();
-              form.setFieldsValue({ 
+              form.setFieldsValue({
                 date: selectedDate,
-                type: 'personal',
+                event_type: 'personal',
                 priority: 'medium',
-                isAllDay: false,
+                is_all_day: false,
                 reminder: 15,
-                repeat: 'none',
+                repeat_type: 'none',
               });
               setShowEventModal(true);
             }}
@@ -455,16 +469,15 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
         ) : (
           <div className="space-y-4">
             {todayEvents.map(event => {
-              const typeConfig = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
+              const typeConfig = eventTypeConfig[event.event_type as keyof typeof eventTypeConfig];
               return (
                 <div
                   key={event.id}
-                  className={`p-4 rounded-xl border transition-all duration-200 hover:shadow-md ${
-                    darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:bg-gray-50'
-                  }`}
-                  style={{ 
+                  className={`p-4 rounded-xl border transition-all duration-200 hover:shadow-md ${darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                  style={{
                     borderLeft: `4px solid ${typeConfig.color}`,
-                    background: darkMode 
+                    background: darkMode
                       ? `linear-gradient(135deg, ${typeConfig.color}10 0%, transparent 100%)`
                       : `linear-gradient(135deg, ${typeConfig.color}08 0%, transparent 100%)`
                   }}
@@ -473,7 +486,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-3">
                         <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-                             style={{ backgroundColor: `${typeConfig.color}20` }}>
+                          style={{ backgroundColor: `${typeConfig.color}20` }}>
                           {typeConfig.icon}
                         </div>
                         <div>
@@ -488,75 +501,76 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                           </div>
                         </div>
                       </div>
-                      
+
                       {event.description && (
                         <Text className={`block mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                           {event.description}
                         </Text>
                       )}
-                      
-                      <div className="flex flex-wrap gap-4 text-sm">
-                        <div className="flex items-center space-x-1">
-                          <ClockCircleOutlined className="text-blue-600" />
-                          <span>
-                            {event.isAllDay ? '全天' : `${event.startTime} - ${event.endTime}`}
-                          </span>
-                        </div>
-                        
+
+                      <div className="flex flex-wrap gap-4 text-sm">                        <div className="flex items-center space-x-1">
+                        <ClockCircleOutlined className="text-blue-600" />
+                        <span>
+                          {event.is_all_day ? '全天' : `${event.start_time} - ${event.end_time}`}
+                        </span>
+                      </div>
+
                         {event.location && (
                           <div className="flex items-center space-x-1">
                             <EnvironmentOutlined className="text-green-600" />
                             <span>{event.location}</span>
                           </div>
                         )}
-                        
+
                         {event.reminder && (
                           <div className="flex items-center space-x-1">
                             <BellOutlined className="text-orange-600" />
                             <span>提前{event.reminder}分钟提醒</span>
                           </div>
                         )}
-                        
-                        {event.repeat && event.repeat !== 'none' && (
+                        {event.repeat_type && event.repeat_type !== 'none' && (
                           <div className="flex items-center space-x-1">
                             <SyncOutlined className="text-purple-600" />
                             <span>
-                              {event.repeat === 'daily' ? '每日重复' : 
-                               event.repeat === 'weekly' ? '每周重复' : 
-                               event.repeat === 'monthly' ? '每月重复' : '每年重复'}
+                              {event.repeat_type === 'daily' ? '每日重复' :
+                                event.repeat_type === 'weekly' ? '每周重复' :
+                                  event.repeat_type === 'monthly' ? '每月重复' : '每年重复'}
                             </span>
                           </div>
                         )}
                       </div>
-                      
-                      {event.attendees && event.attendees.length > 0 && (
-                        <div className="mt-3 flex items-center space-x-2">
-                          <TeamOutlined className="text-blue-600" />
-                          <Text className="text-sm">参与者: </Text>
-                          <Avatar.Group size="small" maxCount={3}>
-                            {event.attendees.map((attendee, index) => (
-                              <Avatar key={index} className="bg-blue-500">
-                                {attendee.charAt(0)}
-                              </Avatar>
-                            ))}
-                          </Avatar.Group>
-                        </div>
-                      )}
+                      {(() => {
+                        const attendeesList = event.attendees ?
+                          (typeof event.attendees === 'string' ? JSON.parse(event.attendees) : event.attendees) : [];
+                        return attendeesList.length > 0 && (
+                          <div className="mt-3 flex items-center space-x-2">
+                            <TeamOutlined className="text-blue-600" />
+                            <Text className="text-sm">参与者: </Text>
+                            <Avatar.Group size="small" maxCount={3}>
+                              {attendeesList.map((attendee: string, index: number) => (
+                                <Avatar key={index} className="bg-blue-500">
+                                  {attendee.charAt(0)}
+                                </Avatar>
+                              ))}
+                            </Avatar.Group>
+                          </div>
+                        );
+                      })()}
                     </div>
-                    
+
                     <div className="flex space-x-2">
                       <Tooltip title="编辑">
-                        <Button 
-                          size="small" 
+                        <Button
+                          size="small"
                           icon={<EditOutlined />}
                           className="rounded-lg"
                           onClick={() => handleEditEvent(event)}
                         />
                       </Tooltip>
                       <Tooltip title="删除">
-                        <Button 
-                          size="small" 
-                          danger 
+                        <Button
+                          size="small"
+                          danger
                           icon={<DeleteOutlined />}
                           className="rounded-lg"
                           onClick={() => handleDeleteEvent(event.id)}
@@ -584,7 +598,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             管理您的日程安排和重要事件
           </Text>
         </div>
-        
+
         <Space>
           <Button icon={<ExportOutlined />} className="rounded-lg">
             导出日历
@@ -592,7 +606,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           <Button icon={<SyncOutlined />} className="rounded-lg">
             同步日历
           </Button>
-          <Button 
+          <Button
             type="primary"
             icon={<PlusOutlined />}
             size="large"
@@ -600,13 +614,13 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             onClick={() => {
               setEditingEvent(null);
               form.resetFields();
-              form.setFieldsValue({ 
+              form.setFieldsValue({
                 date: selectedDate,
-                type: 'personal',
+                event_type: 'personal',
                 priority: 'medium',
-                isAllDay: false,
+                is_all_day: false,
                 reminder: 15,
-                repeat: 'none',
+                repeat_type: 'none',
               });
               setShowEventModal(true);
             }}
@@ -622,21 +636,21 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           <Col>
             <Space size="large">
               <Button.Group>
-                <Button 
+                <Button
                   type={currentView === 'month' ? 'primary' : 'default'}
                   onClick={() => setCurrentView('month')}
                   className="rounded-l-lg"
                 >
                   <EyeOutlined /> 月视图
                 </Button>
-                <Button 
+                <Button
                   type={currentView === 'week' ? 'primary' : 'default'}
                   onClick={() => setCurrentView('week')}
                   disabled
                 >
                   周视图
                 </Button>
-                <Button 
+                <Button
                   type={currentView === 'day' ? 'primary' : 'default'}
                   onClick={() => setCurrentView('day')}
                   disabled
@@ -645,8 +659,8 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                   日视图
                 </Button>
               </Button.Group>
-              
-              <Button 
+
+              <Button
                 onClick={() => setSelectedDate(dayjs())}
                 className="rounded-lg"
               >
@@ -671,20 +685,20 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
               </Space>
             </Space>
           </Col>
-          
+
           <Col>
             <Space size="large">
-              <Button 
+              <Button
                 onClick={() => setSelectedDate(selectedDate.subtract(1, 'month'))}
                 icon={<LeftOutlined />}
                 className="rounded-lg"
               />
-              
+
               <Text className={`mx-4 font-semibold text-lg ${darkMode ? 'text-white' : ''}`}>
                 {selectedDate.format('YYYY年MM月')}
               </Text>
-              
-              <Button 
+
+              <Button
                 onClick={() => setSelectedDate(selectedDate.add(1, 'month'))}
                 icon={<RightOutlined />}
                 className="rounded-lg"
@@ -701,7 +715,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
             {renderCalendarGrid()}
           </Card>
         </Col>
-        
+
         <Col span={8}>
           {renderEventList()}
         </Col>
@@ -752,12 +766,12 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                 <DatePicker className="w-full" size="large" />
               </Form.Item>
             </Col>
-            
+
             <Col span={12}>
-              <Form.Item name="isAllDay" valuePropName="checked" label=" ">
-                <Switch 
-                  checkedChildren="全天" 
-                  unCheckedChildren="指定时间" 
+              <Form.Item name="is_all_day" valuePropName="checked" label=" ">
+                <Switch
+                  checkedChildren="全天"
+                  unCheckedChildren="指定时间"
                   size="default"
                 />
               </Form.Item>
@@ -765,13 +779,12 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           </Row>
 
           <Form.Item
-            noStyle
-            shouldUpdate={(prevValues, currentValues) => 
-              prevValues.isAllDay !== currentValues.isAllDay
+            noStyle shouldUpdate={(prevValues, currentValues) =>
+              prevValues.is_all_day !== currentValues.is_all_day
             }
           >
-            {({ getFieldValue }) => 
-              !getFieldValue('isAllDay') && (
+            {({ getFieldValue }) =>
+              !getFieldValue('is_all_day') && (
                 <Form.Item name="timeRange" label="时间">
                   <TimePicker.RangePicker format="HH:mm" className="w-full" size="large" />
                 </Form.Item>
@@ -781,7 +794,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="type" label="类型">
+              <Form.Item name="event_type" label="类型">
                 <Select size="large">
                   {Object.entries(eventTypeConfig).map(([key, config]) => (
                     <Option key={key} value={key}>
@@ -794,7 +807,7 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                 </Select>
               </Form.Item>
             </Col>
-            
+
             <Col span={12}>
               <Form.Item name="priority" label="优先级">
                 <Select size="large">
@@ -818,9 +831,9 @@ export const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
                 </Select>
               </Form.Item>
             </Col>
-            
+
             <Col span={12}>
-              <Form.Item name="repeat" label="重复">
+              <Form.Item name="repeat_type" label="重复">
                 <Select size="large">
                   <Option value="none">不重复</Option>
                   <Option value="daily">每天</Option>

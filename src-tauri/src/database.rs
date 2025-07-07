@@ -899,14 +899,14 @@ impl DatabaseService {
         self.get_habit_record(id).await
     }
 
-    pub async fn delete_habit_record(&self, id: &str) -> Result<(), Box<dyn std::error::Error>> {
-        sqlx::query("DELETE FROM habit_records WHERE id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
+    // pub async fn delete_habit_record(&self, id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    //     sqlx::query("DELETE FROM habit_records WHERE id = ?")
+    //         .bind(id)
+    //         .execute(&self.pool)
+    //         .await?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub async fn get_or_create_habit_record(&self, habit_id: &str, date: &str) -> Result<HabitRecord, Box<dyn std::error::Error>> {
         // 首先尝试获取现有记录
