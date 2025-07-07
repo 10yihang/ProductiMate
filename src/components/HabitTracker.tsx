@@ -17,7 +17,6 @@ import {
   Badge,
   Statistic,
   Tooltip,
-  Empty,
 } from 'antd';
 import {
   PlusOutlined,
